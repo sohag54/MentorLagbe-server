@@ -333,3 +333,107 @@ export async function handleStripeWebhook(req, res) {
   }
 }
 
+/**
+ * 3. GET /api/admin/payments/revenue (Protected: verifyToken, verifyAdmin)
+ * Calculates Total Stripe Revenue via server-side MongoDB aggregation on payments collection.
+ * Only completed payments with paymentStatus: 'paid' are summed.
+ * Safe fallback for empty collection returns totalRevenue: 0.
+ */
+export async function getAdminStripeRevenue(req, res) {
+  try {
+    const db = getDB();
+
+    const revenueAggregation = await db
+      .collection('payments')
+      .aggregate([
+        { $match: { paymentStatus: 'paid' } },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$amount' },
+            totalRevenueCents: { $sum: '$amountCents' },
+            totalTransactions: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray();
+
+    const stats = revenueAggregation[0] || {
+      totalRevenue: 0,
+      totalRevenueCents: 0,
+      totalTransactions: 0,
+    };
+
+    return res.status(200).json({
+      success: true,
+      totalRevenue: stats.totalRevenue,
+      totalTransactions: stats.totalTransactions,
+      currency: 'usd',
+      data: {
+        totalRevenue: stats.totalRevenue,
+        totalRevenueCents: stats.totalRevenueCents,
+        totalTransactions: stats.totalTransactions,
+        currency: 'usd',
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching admin Stripe revenue:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to calculate Stripe revenue.',
+    });
+  }
+}
+
+/**
+ * 4. GET /api/admin/payments/transactions (Protected: verifyToken, verifyAdmin)
+ * Retrieves Stripe subscription transaction records for the Admin Transactions table.
+ * Includes PDF required fields: User Name, Email, Role, Plan Name, Amount, Transaction ID, Payment Date (paidAt).
+ * Ordered newest first (paidAt descending).
+ */
+export async function getAdminTransactions(req, res) {
+  try {
+    const db = getDB();
+
+    const transactions = await db
+      .collection('payments')
+      .find({})
+      .sort({ paidAt: -1, _id: -1 })
+      .toArray();
+
+    // Map records to ensure all PDF required columns are cleanly present
+    const formattedTransactions = transactions.map((t) => ({
+      _id: t._id,
+      userId: t.userId || '',
+      userName: t.userName || 'User',
+      userEmail: t.userEmail || '',
+      email: t.userEmail || '',
+      userRole: t.userRole || t.role || 'student',
+      role: t.role || t.userRole || 'student',
+      planName: t.planName || 'pro',
+      amount: t.amount,
+      amountCents: t.amountCents || Math.round(t.amount * 100),
+      currency: t.currency || 'usd',
+      transactionId: t.transactionId || '',
+      invoiceId: t.invoiceId || '',
+      stripeSessionId: t.stripeSessionId || '',
+      subscriptionId: t.subscriptionId || '',
+      paymentStatus: t.paymentStatus || 'paid',
+      paidAt: t.paidAt,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedTransactions.length,
+      transactions: formattedTransactions,
+      data: formattedTransactions,
+    });
+  } catch (error) {
+    console.error('Error fetching admin Stripe transactions:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve transaction records.',
+    });
+  }
+}
+
