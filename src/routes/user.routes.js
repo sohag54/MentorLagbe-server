@@ -2,10 +2,18 @@ import express from 'express';
 import {
   getAdminUsers,
   updateUserRoleAdmin,
+  getAdminDashboardStats,
 } from '../controllers/user.controller.js';
 import { verifyToken, verifyAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
+
+// ==========================================
+// Admin Dashboard Overview Statistics Route (Protected)
+// ==========================================
+
+// GET /api/admin/stats - Admin Dashboard Overview Statistics
+router.get('/admin/stats', verifyToken, verifyAdmin, getAdminDashboardStats);
 
 // ==========================================
 // Admin User Management Routes (Protected)

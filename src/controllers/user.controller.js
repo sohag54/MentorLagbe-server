@@ -166,3 +166,78 @@ export async function updateUserRoleAdmin(req, res) {
   }
 }
 
+/**
+ * 3. GET /api/admin/stats (Protected: verifyToken, verifyAdmin)
+ * Retrieves platform overview statistics for the Admin Dashboard:
+ * - Total Users (count of all users in users collection)
+ * - Total Tutors (count of users with role: 'tutor')
+ * - Pending Tuitions (count of tuitions with approvalStatus: 'pending')
+ * - Approved Tuitions (count of tuitions with approvalStatus: 'approved')
+ * - Total Stripe Revenue (sum of amount from payments collection where paymentStatus: 'paid')
+ * Empty collections return 0 values, never errors.
+ * No private user, student, tutor, or payment details are exposed.
+ */
+export async function getAdminDashboardStats(req, res) {
+  try {
+    const db = getDB();
+
+    const [
+      totalUsers,
+      totalTutors,
+      pendingTuitions,
+      approvedTuitions,
+      revenueAggregation,
+    ] = await Promise.all([
+      db.collection('users').countDocuments({}),
+      db.collection('users').countDocuments({ role: 'tutor' }),
+      db.collection('tuitions').countDocuments({ approvalStatus: 'pending' }),
+      db.collection('tuitions').countDocuments({ approvalStatus: 'approved' }),
+      db
+        .collection('payments')
+        .aggregate([
+          {
+            $match: {
+              paymentStatus: 'paid',
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalRevenue: { $sum: '$amount' },
+              totalRevenueCents: { $sum: '$amountCents' },
+              successfulTransactionsCount: { $sum: 1 },
+            },
+          },
+        ])
+        .toArray(),
+    ]);
+
+    const revenueStats = revenueAggregation[0] || {
+      totalRevenue: 0,
+      totalRevenueCents: 0,
+      successfulTransactionsCount: 0,
+    };
+
+    const totalStripeRevenue = revenueStats.totalRevenue;
+
+    const statsData = {
+      totalUsers,
+      totalTutors,
+      pendingTuitions,
+      approvedTuitions,
+      totalStripeRevenue,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: statsData,
+    });
+  } catch (error) {
+    console.error('Error fetching admin dashboard stats:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve admin dashboard statistics.',
+    });
+  }
+}
+
