@@ -9,6 +9,7 @@ import tuitionRouter from './routes/tuition.routes.js';
 import applicationRouter from './routes/application.routes.js';
 import uploadRouter from './routes/upload.routes.js';
 import paymentRouter from './routes/payment.routes.js';
+import userRouter from './routes/user.routes.js';
 import { handleStripeWebhook } from './controllers/payment.controller.js';
 
 // Load environment variables
@@ -47,6 +48,7 @@ app.use('/api', tuitionRouter);
 app.use('/api', applicationRouter);
 app.use('/api', uploadRouter);
 app.use('/api', paymentRouter);
+app.use('/api', userRouter);
 
 // Root health-check endpoint: simple server-running message
 app.get('/', (req, res) => {
