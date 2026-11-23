@@ -39,6 +39,17 @@ export async function connectDB() {
     await client.db('admin').command({ ping: 1 });
     db = client.db(dbName);
     console.log(`Successfully connected to MongoDB database: ${dbName}`);
+
+    // Safe compound unique index for preventing duplicate applications under concurrent requests
+    try {
+      await db.collection('applications').createIndex(
+        { tuitionId: 1, studentEmail: 1 },
+        { unique: true, name: 'uniq_tuition_student' }
+      );
+    } catch (indexError) {
+      console.warn('Note on application index initialization:', indexError.message);
+    }
+
     return db;
   } catch (error) {
     console.error('MongoDB connection error:', error.message);

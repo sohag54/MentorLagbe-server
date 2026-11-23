@@ -6,6 +6,7 @@ import { connectDB } from './config/db.js';
 import { auth } from './config/auth.js';
 import authRouter from './routes/auth.routes.js';
 import tuitionRouter from './routes/tuition.routes.js';
+import applicationRouter from './routes/application.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +34,7 @@ app.use(express.json());
 
 // Business API routes
 app.use('/api', tuitionRouter);
+app.use('/api', applicationRouter);
 
 // Root health-check endpoint: simple server-running message
 app.get('/', (req, res) => {
