@@ -136,6 +136,72 @@ export async function getMyApplications(req, res) {
 }
 
 /**
+ * 2b. GET /api/student/stats (Student Only)
+ * Retrieves dashboard overview statistics for the authenticated student:
+ * - totalAppliedTuitions: Total applications submitted by the student
+ * - acceptedApplications: Applications with status 'accepted'
+ * - pendingApplications: Applications with status 'pending'
+ * - currentPlan: The student's current plan ('free' or 'pro') from users collection
+ * Derives student identity strictly from verified JWT (req.user.email).
+ */
+export async function getStudentDashboardStats(req, res) {
+  try {
+    const db = getDB();
+    const studentEmail = req.user?.email;
+
+    if (!studentEmail) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Student email not found in token payload.',
+      });
+    }
+
+    const [
+      userDoc,
+      totalAppliedTuitions,
+      acceptedApplications,
+      pendingApplications,
+    ] = await Promise.all([
+      db.collection('users').findOne(
+        { email: studentEmail },
+        { projection: { plan: 1 } }
+      ),
+      db.collection('applications').countDocuments({ studentEmail }),
+      db.collection('applications').countDocuments({ studentEmail, status: 'accepted' }),
+      db.collection('applications').countDocuments({ studentEmail, status: 'pending' }),
+    ]);
+
+    if (!userDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student record not found in database.',
+      });
+    }
+
+    const currentPlan =
+      userDoc.plan && typeof userDoc.plan === 'string' && userDoc.plan.trim()
+        ? userDoc.plan.trim().toLowerCase()
+        : 'free';
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalAppliedTuitions,
+        acceptedApplications,
+        pendingApplications,
+        currentPlan,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching student dashboard stats:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve student dashboard statistics.',
+    });
+  }
+}
+
+/**
  * 3. DELETE /api/applications/:id (Student Only)
  * Allows a student to cancel/delete their own application ONLY while status is 'pending'.
  */

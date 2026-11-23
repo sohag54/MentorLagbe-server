@@ -2,6 +2,7 @@ import express from 'express';
 import {
   createApplication,
   getMyApplications,
+  getStudentDashboardStats,
   cancelApplication,
   getTutorApplications,
   getApplicationsForTuition,
@@ -18,6 +19,9 @@ const router = express.Router();
 // ==========================================
 // Student-Protected Routes
 // ==========================================
+
+// GET /api/student/stats - Student views their dashboard overview statistics
+router.get('/student/stats', verifyToken, verifyStudent, getStudentDashboardStats);
 
 // POST /api/applications - Student submits an application to an approved & active tuition post
 router.post('/applications', verifyToken, verifyStudent, createApplication);
