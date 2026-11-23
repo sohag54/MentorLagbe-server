@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { toNodeHandler } from 'better-auth/node';
 import { connectDB } from './config/db.js';
 import { auth } from './config/auth.js';
+import authRouter from './routes/auth.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -19,6 +20,9 @@ app.use(
     credentials: true,
   })
 );
+
+// API routes (mounted before Better Auth wildcard to handle custom endpoints)
+app.use('/api', authRouter);
 
 // Better Auth route handler (mounted before express.json for request body stream handling)
 app.all('/api/auth/{*splat}', toNodeHandler(auth));
