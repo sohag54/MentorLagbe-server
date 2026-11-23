@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { toNodeHandler } from 'better-auth/node';
 import { connectDB } from './config/db.js';
+import { auth } from './config/auth.js';
 
 // Load environment variables
 dotenv.config();
@@ -17,6 +19,11 @@ app.use(
     credentials: true,
   })
 );
+
+// Better Auth route handler (mounted before express.json for request body stream handling)
+app.all('/api/auth/{*splat}', toNodeHandler(auth));
+
+// Body parsing middleware for application routes
 app.use(express.json());
 
 // Root health-check endpoint: simple server-running message
