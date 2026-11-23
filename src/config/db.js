@@ -50,6 +50,17 @@ export async function connectDB() {
       console.warn('Note on application index initialization:', indexError.message);
     }
 
+    // Required unique indexes for webhook / payment processing idempotency
+    await db.collection('payments').createIndex(
+      { stripeEventId: 1 },
+      { unique: true, sparse: true, name: 'uniq_payment_stripe_event' }
+    );
+
+    await db.collection('payments').createIndex(
+      { stripeSessionId: 1 },
+      { unique: true, sparse: true, name: 'uniq_payment_stripe_session' }
+    );
+
     return db;
   } catch (error) {
     console.error('MongoDB connection error:', error.message);

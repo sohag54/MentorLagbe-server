@@ -8,6 +8,8 @@ import authRouter from './routes/auth.routes.js';
 import tuitionRouter from './routes/tuition.routes.js';
 import applicationRouter from './routes/application.routes.js';
 import uploadRouter from './routes/upload.routes.js';
+import paymentRouter from './routes/payment.routes.js';
+import { handleStripeWebhook } from './controllers/payment.controller.js';
 
 // Load environment variables
 dotenv.config();
@@ -30,6 +32,13 @@ app.use('/api', authRouter);
 // Better Auth route handler (mounted before express.json for request body stream handling)
 app.all('/api/auth/{*splat}', toNodeHandler(auth));
 
+// Stripe Webhook route with raw buffer parsing (mounted strictly BEFORE express.json)
+app.post(
+  '/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  handleStripeWebhook
+);
+
 // Body parsing middleware for application routes (up to 10MB for base64 uploads)
 app.use(express.json({ limit: '10mb' }));
 
@@ -37,6 +46,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use('/api', tuitionRouter);
 app.use('/api', applicationRouter);
 app.use('/api', uploadRouter);
+app.use('/api', paymentRouter);
 
 // Root health-check endpoint: simple server-running message
 app.get('/', (req, res) => {
