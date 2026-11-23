@@ -1,5 +1,7 @@
 import express from 'express';
 import {
+  getUserProfile,
+  updateUserProfile,
   getAdminUsers,
   updateUserRoleAdmin,
   getAdminDashboardStats,
@@ -7,6 +9,16 @@ import {
 import { verifyToken, verifyAdmin } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
+
+// ==========================================
+// User Profile Routes (Protected: verifyToken)
+// ==========================================
+
+// GET /api/users/profile - Authenticated user retrieves their own profile
+router.get('/users/profile', verifyToken, getUserProfile);
+
+// PATCH /api/users/profile - Authenticated user updates their own profile
+router.patch('/users/profile', verifyToken, updateUserProfile);
 
 // ==========================================
 // Admin Dashboard Overview Statistics Route (Protected)

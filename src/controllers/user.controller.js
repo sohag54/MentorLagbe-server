@@ -4,7 +4,268 @@ import { getDB } from '../config/db.js';
 const ALLOWED_ROLES = ['student', 'tutor', 'admin'];
 
 /**
- * 1. GET /api/admin/users (Protected: verifyToken, verifyAdmin)
+ * 1. GET /api/users/profile (Protected: verifyToken)
+ * Retrieves the authenticated user's own profile using req.user.email.
+ * Accessible to any authenticated role (student, tutor, admin).
+ * Returns safe profile fields: _id, name, email, role, plan, image, phone, bio, createdAt, updatedAt.
+ * Returns HTTP 404 if the user record does not exist in the database.
+ * Never exposes passwords, authentication secrets, tokens, or sessions.
+ */
+export async function getUserProfile(req, res) {
+  try {
+    const userEmail = req.user?.email;
+    if (!userEmail || typeof userEmail !== 'string') {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Valid email claim required in token.',
+      });
+    }
+
+    const db = getDB();
+    const normalizedEmail = userEmail.trim().toLowerCase();
+
+    const user = await db.collection('users').findOne(
+      {
+        $or: [
+          { email: normalizedEmail },
+          { email: userEmail.trim() },
+        ],
+      },
+      {
+        projection: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          role: 1,
+          plan: 1,
+          image: 1,
+          phone: 1,
+          bio: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User profile not found.',
+      });
+    }
+
+    const safeUser = {
+      _id: user._id,
+      name: user.name || 'User',
+      email: user.email || '',
+      role: user.role || 'student',
+      plan: user.plan || 'free',
+      image: user.image || '',
+      phone: user.phone || '',
+      bio: user.bio || '',
+      createdAt: user.createdAt || null,
+      updatedAt: user.updatedAt || null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      user: safeUser,
+      data: safeUser,
+    });
+  } catch (error) {
+    console.error('Error fetching user profile:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve user profile.',
+    });
+  }
+}
+
+/**
+ * 2. PATCH /api/users/profile (Protected: verifyToken)
+ * Updates the authenticated user's own profile using req.user.email.
+ * Allows updating only safe personal fields: name, phone, bio, image.
+ * Validates input types, limits excessive lengths, and prevents blank name.
+ * Strictly ignores or rejects any attempts to modify email, role, plan, _id, or other protected fields.
+ * Identity is never derived from request body or query parameters.
+ * Returns the updated safe profile document.
+ */
+export async function updateUserProfile(req, res) {
+  try {
+    const userEmail = req.user?.email;
+    if (!userEmail || typeof userEmail !== 'string') {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Valid email claim required in token.',
+      });
+    }
+
+    const db = getDB();
+    const normalizedEmail = userEmail.trim().toLowerCase();
+
+    // 1. Verify target user exists
+    const existingUser = await db.collection('users').findOne({
+      $or: [
+        { email: normalizedEmail },
+        { email: userEmail.trim() },
+      ],
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User profile not found.',
+      });
+    }
+
+    const { name, phone, bio, image } = req.body || {};
+    const updateFields = {};
+
+    // 2. Validate name (if provided)
+    if (name !== undefined) {
+      if (typeof name !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid name. Name must be a string.',
+        });
+      }
+      const trimmedName = name.trim();
+      if (trimmedName.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Name cannot be empty.',
+        });
+      }
+      if (trimmedName.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Name cannot exceed 100 characters.',
+        });
+      }
+      updateFields.name = trimmedName;
+    }
+
+    // 3. Validate phone (if provided)
+    if (phone !== undefined) {
+      if (typeof phone !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid phone. Phone must be a string.',
+        });
+      }
+      const trimmedPhone = phone.trim();
+      if (trimmedPhone.length > 30) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number cannot exceed 30 characters.',
+        });
+      }
+      updateFields.phone = trimmedPhone;
+    }
+
+    // 4. Validate bio (if provided)
+    if (bio !== undefined) {
+      if (typeof bio !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid bio. Bio must be a string.',
+        });
+      }
+      const trimmedBio = bio.trim();
+      if (trimmedBio.length > 1000) {
+        return res.status(400).json({
+          success: false,
+          message: 'Bio cannot exceed 1000 characters.',
+        });
+      }
+      updateFields.bio = trimmedBio;
+    }
+
+    // 5. Validate image (if provided)
+    if (image !== undefined) {
+      if (typeof image !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid image. Image must be a string URL or data URI.',
+        });
+      }
+      const trimmedImage = image.trim();
+      if (trimmedImage.length > 500000) {
+        return res.status(400).json({
+          success: false,
+          message: 'Image string is too large.',
+        });
+      }
+      updateFields.image = trimmedImage;
+    }
+
+    // Require at least one valid field to update
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid profile fields provided for update. Allowed fields: name, phone, bio, image.',
+      });
+    }
+
+    // Attach updated timestamp
+    const updatedAt = new Date();
+    updateFields.updatedAt = updatedAt;
+
+    // Execute update strictly for this authenticated user
+    await db.collection('users').updateOne(
+      { _id: existingUser._id },
+      { $set: updateFields }
+    );
+
+    // Retrieve updated document
+    const updatedUser = await db.collection('users').findOne(
+      { _id: existingUser._id },
+      {
+        projection: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          role: 1,
+          plan: 1,
+          image: 1,
+          phone: 1,
+          bio: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      }
+    );
+
+    const safeUser = {
+      _id: updatedUser._id,
+      name: updatedUser.name || 'User',
+      email: updatedUser.email || '',
+      role: updatedUser.role || 'student',
+      plan: updatedUser.plan || 'free',
+      image: updatedUser.image || '',
+      phone: updatedUser.phone || '',
+      bio: updatedUser.bio || '',
+      createdAt: updatedUser.createdAt || null,
+      updatedAt: updatedUser.updatedAt || null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: safeUser,
+      data: safeUser,
+    });
+  } catch (error) {
+    console.error('Error updating user profile:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update user profile.',
+    });
+  }
+}
+
+/**
+ * 3. GET /api/admin/users (Protected: verifyToken, verifyAdmin)
  * Retrieves all registered users from the users collection.
  * Projects safe profile fields: _id, name, email, role, plan, image, phone, bio, createdAt.
  * Sorts newest users first.
