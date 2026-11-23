@@ -7,6 +7,7 @@ import { auth } from './config/auth.js';
 import authRouter from './routes/auth.routes.js';
 import tuitionRouter from './routes/tuition.routes.js';
 import applicationRouter from './routes/application.routes.js';
+import uploadRouter from './routes/upload.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -29,12 +30,13 @@ app.use('/api', authRouter);
 // Better Auth route handler (mounted before express.json for request body stream handling)
 app.all('/api/auth/{*splat}', toNodeHandler(auth));
 
-// Body parsing middleware for application routes
-app.use(express.json());
+// Body parsing middleware for application routes (up to 10MB for base64 uploads)
+app.use(express.json({ limit: '10mb' }));
 
 // Business API routes
 app.use('/api', tuitionRouter);
 app.use('/api', applicationRouter);
+app.use('/api', uploadRouter);
 
 // Root health-check endpoint: simple server-running message
 app.get('/', (req, res) => {
