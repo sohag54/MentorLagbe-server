@@ -5,6 +5,7 @@ import { toNodeHandler } from 'better-auth/node';
 import { connectDB } from './config/db.js';
 import { auth } from './config/auth.js';
 import authRouter from './routes/auth.routes.js';
+import tuitionRouter from './routes/tuition.routes.js';
 
 // Load environment variables
 dotenv.config();
@@ -29,6 +30,9 @@ app.all('/api/auth/{*splat}', toNodeHandler(auth));
 
 // Body parsing middleware for application routes
 app.use(express.json());
+
+// Business API routes
+app.use('/api', tuitionRouter);
 
 // Root health-check endpoint: simple server-running message
 app.get('/', (req, res) => {
