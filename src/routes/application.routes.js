@@ -3,6 +3,7 @@ import {
   createApplication,
   getMyApplications,
   getStudentDashboardStats,
+  getTutorDashboardStats,
   cancelApplication,
   getTutorApplications,
   getApplicationsForTuition,
@@ -35,6 +36,9 @@ router.delete('/applications/:id', verifyToken, verifyStudent, cancelApplication
 // ==========================================
 // Tutor-Protected Routes
 // ==========================================
+
+// GET /api/tutor/stats - Tutor views their dashboard overview statistics
+router.get('/tutor/stats', verifyToken, verifyTutor, getTutorDashboardStats);
 
 // GET /api/tutor/applications - Tutor views all applications across their tuition posts
 router.get('/tutor/applications', verifyToken, verifyTutor, getTutorApplications);

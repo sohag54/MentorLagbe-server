@@ -202,6 +202,76 @@ export async function getStudentDashboardStats(req, res) {
 }
 
 /**
+ * 2c. GET /api/tutor/stats (Tutor Only)
+ * Retrieves dashboard overview statistics for the authenticated tutor:
+ * - totalTuitionsPosted: Count all tuitions posted by tutor using tutorEmail
+ * - activeApprovedTuitions: Count tuitions where approvalStatus: 'approved' and isActive: true
+ * - totalApplicantsReceived: Count all applications received across all statuses using tutorEmail
+ * - currentPlan: The tutor's current plan ('free' or 'pro') from users collection
+ * Derives tutor identity strictly from verified JWT (req.user.email).
+ */
+export async function getTutorDashboardStats(req, res) {
+  try {
+    const db = getDB();
+    const tutorEmail = req.user?.email;
+
+    if (!tutorEmail) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Tutor email not found in token payload.',
+      });
+    }
+
+    const [
+      userDoc,
+      totalTuitionsPosted,
+      activeApprovedTuitions,
+      totalApplicantsReceived,
+    ] = await Promise.all([
+      db.collection('users').findOne(
+        { email: tutorEmail },
+        { projection: { plan: 1 } }
+      ),
+      db.collection('tuitions').countDocuments({ tutorEmail }),
+      db.collection('tuitions').countDocuments({
+        tutorEmail,
+        approvalStatus: 'approved',
+        isActive: true,
+      }),
+      db.collection('applications').countDocuments({ tutorEmail }),
+    ]);
+
+    if (!userDoc) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tutor record not found in database.',
+      });
+    }
+
+    const currentPlan =
+      userDoc.plan && typeof userDoc.plan === 'string' && userDoc.plan.trim()
+        ? userDoc.plan.trim().toLowerCase()
+        : 'free';
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalTuitionsPosted,
+        activeApprovedTuitions,
+        totalApplicantsReceived,
+        currentPlan,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching tutor dashboard stats:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve tutor dashboard statistics.',
+    });
+  }
+}
+
+/**
  * 3. DELETE /api/applications/:id (Student Only)
  * Allows a student to cancel/delete their own application ONLY while status is 'pending'.
  */
