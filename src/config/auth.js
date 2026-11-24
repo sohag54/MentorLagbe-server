@@ -8,6 +8,10 @@ dotenv.config();
 const dbName = process.env.DB_NAME || 'mentorlagbe';
 const db = client.db(dbName);
 
+const isProduction =
+  process.env.NODE_ENV === 'production' ||
+  process.env.BETTER_AUTH_URL?.startsWith('https://');
+
 export const auth = betterAuth({
   database: mongodbAdapter(db, {
     client,
@@ -16,6 +20,13 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:5000',
   trustedOrigins: [process.env.CLIENT_URL || 'http://localhost:3000'],
+  advanced: {
+    useSecureCookies: isProduction,
+    defaultCookieAttributes: {
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
+    },
+  },
   emailAndPassword: {
     enabled: true,
   },
